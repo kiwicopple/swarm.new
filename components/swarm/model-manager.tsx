@@ -14,12 +14,20 @@ interface ModelStatus {
   id: string;
   status: 'idle' | 'loading' | 'loaded' | 'error';
   progress?: number;
+  loaded?: number;
+  total?: number;
   error?: string;
 }
 
 export function ModelManager() {
   const [modelStatuses, setModelStatuses] = useState<Record<string, ModelStatus>>({});
   const [isVisible, setIsVisible] = useState(false);
+
+  // Helper function to format bytes to MB
+  const formatMB = (bytes?: number): string => {
+    if (bytes === undefined || bytes === null) return '0';
+    return (bytes / (1024 * 1024)).toFixed(1);
+  };
 
   useEffect(() => {
     // Initialize model statuses
@@ -44,10 +52,12 @@ export function ModelManager() {
     try {
       await aiService.loadModel(modelId, (progress: ModelProgress) => {
         console.log(`Model ${modelId} progress:`, progress);
-        if (progress.status === 'loading' && progress.progress !== undefined) {
+        if (progress.status === 'loading') {
           updateModelStatus(modelId, { 
             status: 'loading', 
-            progress: progress.progress 
+            progress: progress.progress || 0,
+            loaded: progress.loaded,
+            total: progress.total
           });
         } else if (progress.status === 'error') {
           console.error(`Model ${modelId} loading error:`, progress.error);
@@ -251,11 +261,24 @@ export function ModelManager() {
                             </span>
                           </div>
 
-                          {status.status === 'loading' && status.progress !== undefined && (
+                          {status.status === 'loading' && (
                             <div className="space-y-1">
-                              <Progress value={status.progress} className="h-1" />
+                              <Progress 
+                                value={
+                                  status.loaded && status.total && status.total > 0
+                                    ? Math.min(100, (status.loaded / status.total) * 100)
+                                    : status.progress || 0
+                                } 
+                                className="h-1" 
+                              />
                               <p className="text-xs text-muted-foreground">
-                                {status.progress}% loaded
+                                {status.loaded && status.total ? (
+                                  `${formatMB(status.loaded)} MB / ${formatMB(status.total)} MB`
+                                ) : status.progress !== undefined ? (
+                                  `${Math.round(status.progress)}% loaded`
+                                ) : (
+                                  'Loading...'
+                                )}
                               </p>
                             </div>
                           )}

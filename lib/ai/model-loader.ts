@@ -177,7 +177,13 @@ class ModelLoader {
       progress_callback: (progress: unknown) => {
         if (onProgress && progress && typeof progress === 'object' && 'progress' in progress) {
           const progressObj = progress as { progress?: number; loaded?: number; total?: number; file?: string };
-          const progressPercent = progressObj.progress ? Math.round(progressObj.progress * 100) : 0;
+          // Handle progress - some models return 0-1, others return 0-100
+          let progressPercent = 0;
+          if (progressObj.progress) {
+            progressPercent = progressObj.progress > 1 
+              ? Math.round(progressObj.progress) // Already in 0-100 range
+              : Math.round(progressObj.progress * 100); // Convert from 0-1 to 0-100
+          }
           onProgress({
             status: 'loading',
             progress: progressPercent,

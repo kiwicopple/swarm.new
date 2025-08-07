@@ -21,6 +21,8 @@ import { Swarm, AgentNode, AgentType } from '@/lib/types';
 import { useSwarmStore } from '@/lib/storage/swarm-store';
 import { NodePalette } from './node-palette';
 import { ExecutionPanel } from './execution-panel';
+import { NodeConfigPanel } from './node-config-panel';
+import { AGENT_CONFIGS } from '@/lib/agent-configs';
 import { ScoutNode } from './agent-nodes/scout-node';
 import { WorkerNode } from './agent-nodes/worker-node';
 import { QueenNode } from './agent-nodes/queen-node';
@@ -42,7 +44,7 @@ interface WorkflowCanvasProps {
 }
 
 export function WorkflowCanvas({ swarm }: WorkflowCanvasProps) {
-  const { updateWorkflow } = useSwarmStore();
+  const { updateWorkflow, setSelectedNode } = useSwarmStore();
   const [nodes, setNodes, onNodesChange] = useNodesState(swarm.workflow.nodes as unknown as Node[]);
   const [edges, setEdges, onEdgesChange] = useEdgesState(swarm.workflow.edges);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -73,7 +75,7 @@ export function WorkflowCanvas({ swarm }: WorkflowCanvasProps) {
         data: {
           name: `${type.charAt(0).toUpperCase() + type.slice(1)} Bee`,
           agentType: type as AgentType,
-          config: {},
+          config: AGENT_CONFIGS[type as AgentType]?.defaultConfig || {},
           inputs: [{ id: 'input', name: 'Input', type: 'any' }],
           outputs: [{ id: 'output', name: 'Output', type: 'any' }],
           status: 'idle',
@@ -103,6 +105,18 @@ export function WorkflowCanvas({ swarm }: WorkflowCanvasProps) {
     setTimeout(() => setIsExecuting(false), 3000);
   };
 
+  const onNodeClick = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.stopPropagation();
+      setSelectedNode(node.id);
+    },
+    [setSelectedNode]
+  );
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
+  }, [setSelectedNode]);
+
   return (
     <div className="h-full w-full flex">
       <NodePalette />
@@ -115,6 +129,8 @@ export function WorkflowCanvas({ swarm }: WorkflowCanvasProps) {
           onConnect={onConnect}
           onDrop={onDrop}
           onDragOver={onDragOver}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
           fitView
         >
@@ -151,6 +167,7 @@ export function WorkflowCanvas({ swarm }: WorkflowCanvasProps) {
             />
           </Panel>
         </ReactFlow>
+        <NodeConfigPanel />
       </div>
     </div>
   );

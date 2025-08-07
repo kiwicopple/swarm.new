@@ -1,6 +1,6 @@
 import localforage from 'localforage';
 import { create } from 'zustand';
-import { Swarm, Workflow } from '@/lib/types';
+import { Swarm, Workflow, AgentNode } from '@/lib/types';
 
 localforage.config({
   name: 'SwarmWorkflow',
@@ -10,6 +10,7 @@ localforage.config({
 interface SwarmStore {
   swarms: Swarm[];
   currentSwarmId: string | null;
+  selectedNodeId: string | null;
   loading: boolean;
   
   loadSwarms: () => Promise<void>;
@@ -19,6 +20,10 @@ interface SwarmStore {
   setCurrentSwarm: (id: string | null) => void;
   getCurrentSwarm: () => Swarm | null;
   updateWorkflow: (swarmId: string, workflow: Workflow) => Promise<void>;
+  
+  setSelectedNode: (nodeId: string | null) => void;
+  getSelectedNode: () => AgentNode | null;
+  updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => Promise<void>;
 }
 
 const generateSwarmId = () => {
@@ -28,6 +33,7 @@ const generateSwarmId = () => {
 export const useSwarmStore = create<SwarmStore>((set, get) => ({
   swarms: [],
   currentSwarmId: null,
+  selectedNodeId: null,
   loading: false,
   
   loadSwarms: async () => {
@@ -92,7 +98,7 @@ export const useSwarmStore = create<SwarmStore>((set, get) => ({
   },
   
   setCurrentSwarm: (id: string | null) => {
-    set({ currentSwarmId: id });
+    set({ currentSwarmId: id, selectedNodeId: null });
   },
   
   getCurrentSwarm: () => {
@@ -107,6 +113,42 @@ export const useSwarmStore = create<SwarmStore>((set, get) => ({
         ? { ...swarm, workflow, updatedAt: new Date() }
         : swarm
     );
+    
+    set({ swarms: updatedSwarms });
+    await localforage.setItem('swarms', updatedSwarms);
+  },
+  
+  setSelectedNode: (nodeId: string | null) => {
+    set({ selectedNodeId: nodeId });
+  },
+  
+  getSelectedNode: () => {
+    const { swarms, currentSwarmId, selectedNodeId } = get();
+    const currentSwarm = swarms.find(swarm => swarm.id === currentSwarmId);
+    if (!currentSwarm || !selectedNodeId) return null;
+    return currentSwarm.workflow.nodes.find(node => node.id === selectedNodeId) || null;
+  },
+  
+  updateNodeConfig: async (nodeId: string, config: Record<string, unknown>) => {
+    const { swarms, currentSwarmId } = get();
+    if (!currentSwarmId) return;
+    
+    const updatedSwarms = swarms.map(swarm => {
+      if (swarm.id !== currentSwarmId) return swarm;
+      
+      const updatedNodes = swarm.workflow.nodes.map(node => {
+        if (node.id === nodeId) {
+          return { ...node, data: { ...node.data, config } };
+        }
+        return node;
+      });
+      
+      return {
+        ...swarm,
+        workflow: { ...swarm.workflow, nodes: updatedNodes },
+        updatedAt: new Date()
+      };
+    });
     
     set({ swarms: updatedSwarms });
     await localforage.setItem('swarms', updatedSwarms);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Download, Trash2, CheckCircle, Loader2, AlertCircle, Brain } from 'lucide-react';
+import { Download, Trash2, CheckCircle, Loader2, AlertCircle, Brain, TestTube } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -78,6 +78,45 @@ export function ModelManager() {
         status: 'error', 
         error: error instanceof Error ? error.message : 'Failed to unload model'
       });
+    }
+  };
+
+  const handleTestModel = async (modelId: string) => {
+    try {
+      const config = MODEL_REGISTRY[modelId];
+      let testInput = '';
+      
+      // Choose appropriate test input based on task
+      switch (config.task) {
+        case 'text-generation':
+          testInput = 'The future of AI is';
+          break;
+        case 'text-classification':
+        case 'sentiment-analysis':
+          testInput = 'I love this amazing technology!';
+          break;
+        case 'summarization':
+          testInput = 'Artificial intelligence is rapidly advancing. Machine learning models are becoming more sophisticated. They can now perform complex tasks like natural language understanding and generation.';
+          break;
+        case 'translation':
+          testInput = 'Hello, how are you today?';
+          break;
+        default:
+          testInput = 'This is a test input.';
+      }
+      
+      console.log(`Testing model ${modelId} with input: "${testInput}"`);
+      const result = await aiService.runInference(modelId, testInput);
+      console.log(`Test result for ${modelId}:`, result);
+      
+      if (result.success) {
+        alert(`✅ Model test successful!\n\nModel: ${config.name}\nInput: ${testInput}\nResult: ${JSON.stringify(result.result, null, 2)}`);
+      } else {
+        alert(`❌ Model test failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error(`Test failed for ${modelId}:`, error);
+      alert(`❌ Test error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -240,15 +279,26 @@ export function ModelManager() {
                               Load
                             </Button>
                           ) : status.status === 'loaded' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleUnloadModel(model.id)}
-                              className="text-xs h-7"
-                            >
-                              <Trash2 className="w-3 h-3 mr-1" />
-                              Unload
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleTestModel(model.id)}
+                                className="text-xs h-7"
+                              >
+                                <TestTube className="w-3 h-3 mr-1" />
+                                Test
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleUnloadModel(model.id)}
+                                className="text-xs h-7"
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                Unload
+                              </Button>
+                            </>
                           ) : null}
                         </div>
                       </div>

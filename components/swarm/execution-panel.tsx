@@ -3,7 +3,6 @@
 import React from 'react';
 import { Play, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ModelManager } from './model-manager';
 
 interface ExecutionPanelProps {
   isExecuting: boolean;
@@ -39,7 +38,6 @@ export function ExecutionPanel({ isExecuting, onExecute, onSave }: ExecutionPane
           </>
         )}
       </Button>
-      <ModelManager />
     </div>
   );
 }

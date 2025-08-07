@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useSwarmStore } from '@/lib/storage/swarm-store';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { ModelManager } from '@/components/swarm/model-manager';
 
 export function Sidebar() {
   const router = useRouter();
@@ -68,7 +69,7 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-80 h-screen bg-secondary/10 border-r border-border p-4 overflow-y-auto">
+    <div className="w-80 h-screen bg-secondary/10 border-r border-border p-4 overflow-y-auto flex flex-col">
       <div className="mb-6">
         <h2 className="text-2xl font-bold flex items-center gap-2 mb-2">
           <Bug className="w-6 h-6 text-primary" />
@@ -129,7 +130,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 flex-1">
         <h3 className="text-sm font-semibold text-muted-foreground mb-2">
           Your Swarms
         </h3>
@@ -181,6 +182,19 @@ export function Sidebar() {
             </Card>
           ))
         )}
+      </div>
+      
+      {/* AI Models Section */}
+      <div className="mt-4 pt-4 border-t border-border">
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold text-muted-foreground mb-1">
+            AI Models
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Load models to power your agents
+          </p>
+        </div>
+        <ModelManager />
       </div>
     </div>
   );

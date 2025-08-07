@@ -2,6 +2,7 @@
 
 import { Bug, Workflow, Cpu, Zap, Shield, Package } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { WorkerTest } from '@/components/test/worker-test';
 
 export default function Home() {
   return (
@@ -94,6 +95,11 @@ export default function Home() {
 
         <div className="text-center text-sm text-muted-foreground">
           <p>Create a new swarm from the sidebar to get started</p>
+        </div>
+
+        {/* Debug: Worker Test */}
+        <div className="mt-8">
+          <WorkerTest />
         </div>
       </div>
     </div>

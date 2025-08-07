@@ -20,7 +20,7 @@ abstract class BaseAgentExecutor {
   protected createOutput(portId: string, value: unknown, type: string): DataPayload {
     return {
       id: `${context.nodeId}_${portId}_${Date.now()}`,
-      type: type as any,
+      type: type as unknown,
       value,
       metadata: {
         source: context.nodeId,
@@ -59,7 +59,7 @@ class ScoutExecutor extends BaseAgentExecutor {
     const startTime = Date.now();
     
     try {
-      const config = context.config as any;
+      const config = context.config as unknown;
       const inputType = config.inputType || 'text';
       const inputValue = config.inputValue || this.getInput(context, 'trigger');
 
@@ -123,7 +123,7 @@ class WorkerExecutor extends BaseAgentExecutor {
     
     try {
       const inputData = this.getInput(context, 'input_data');
-      const config = context.config as any;
+      const config = context.config as unknown;
       const operationType = config.operationType || 'transform';
       
       let processedData: unknown;
@@ -169,7 +169,7 @@ class WorkerExecutor extends BaseAgentExecutor {
     }
   }
 
-  private async transformData(data: unknown, config: any, log: string[]): Promise<unknown> {
+  private async transformData(data: unknown, config: unknown, log: string[]): Promise<unknown> {
     log.push('Applying data transformations');
     // Simple transformation logic
     if (typeof data === 'object' && data !== null) {
@@ -182,7 +182,7 @@ class WorkerExecutor extends BaseAgentExecutor {
     return { original: data, transformed: true };
   }
 
-  private async filterData(data: unknown, config: any, log: string[]): Promise<unknown> {
+  private async filterData(data: unknown, config: unknown, log: string[]): Promise<unknown> {
     log.push('Applying data filters');
     // Simple filtering logic
     if (Array.isArray(data)) {
@@ -191,7 +191,7 @@ class WorkerExecutor extends BaseAgentExecutor {
     return data;
   }
 
-  private async aggregateData(data: unknown, config: any, log: string[]): Promise<unknown> {
+  private async aggregateData(data: unknown, config: unknown, log: string[]): Promise<unknown> {
     log.push('Aggregating data');
     if (Array.isArray(data)) {
       return {
@@ -236,7 +236,7 @@ class QueenExecutor extends BaseAgentExecutor {
     
     try {
       const decisionData = this.getInput(context, 'decision_data');
-      const config = context.config as any;
+      const config = context.config as unknown;
       const decisionType = config.decisionType || 'classify';
 
       if (!context.model) {
@@ -280,7 +280,7 @@ class QueenExecutor extends BaseAgentExecutor {
     }
   }
 
-  private async classifyData(data: unknown, context: ExecutionContext, config: any): Promise<{
+  private async classifyData(data: unknown, context: ExecutionContext, config: unknown): Promise<{
     decision: unknown;
     confidence: number;
     alternatives: unknown[];
@@ -304,7 +304,7 @@ class QueenExecutor extends BaseAgentExecutor {
     };
   }
 
-  private async prioritizeOptions(data: unknown, context: ExecutionContext, config: any): Promise<{
+  private async prioritizeOptions(data: unknown, context: ExecutionContext, config: unknown): Promise<{
     decision: unknown;
     confidence: number;
     alternatives: unknown[];
@@ -322,7 +322,7 @@ class QueenExecutor extends BaseAgentExecutor {
     };
   }
 
-  private async makeRecommendation(data: unknown, context: ExecutionContext, config: any): Promise<{
+  private async makeRecommendation(data: unknown, context: ExecutionContext, config: unknown): Promise<{
     decision: unknown;
     confidence: number;
     alternatives: unknown[];
@@ -351,7 +351,7 @@ class BuilderExecutor extends BaseAgentExecutor {
     try {
       const prompt = this.getInput(context, 'prompt') as string;
       const contextData = this.getInput(context, 'context');
-      const config = context.config as any;
+      const config = context.config as unknown;
 
       if (!context.model) {
         return this.createError(context, 'Builder bee requires an AI model for content generation');
@@ -401,10 +401,10 @@ class GuardExecutor extends BaseAgentExecutor {
     
     try {
       const dataToValidate = this.getInput(context, 'data_to_validate');
-      const config = context.config as any;
+      const config = context.config as unknown;
       const validationType = config.validationType || 'content';
 
-      const validationReport: any = {
+      const validationReport: unknown = {
         nodeId: context.nodeId,
         validatedAt: new Date().toISOString(),
         validationType,
@@ -451,7 +451,7 @@ class GuardExecutor extends BaseAgentExecutor {
     }
   }
 
-  private async validateContent(data: unknown, config: any, report: any): Promise<{
+  private async validateContent(data: unknown, config: unknown, report: unknown): Promise<{
     validatedData: unknown;
     rejectedData: unknown[];
   }> {
@@ -472,7 +472,7 @@ class GuardExecutor extends BaseAgentExecutor {
     return { validatedData: data, rejectedData };
   }
 
-  private async validateSchema(data: unknown, config: any, report: any): Promise<{
+  private async validateSchema(data: unknown, config: unknown, report: unknown): Promise<{
     validatedData: unknown;
     rejectedData: unknown[];
   }> {
@@ -497,7 +497,7 @@ class GuardExecutor extends BaseAgentExecutor {
     return { validatedData: data, rejectedData };
   }
 
-  private async validateSecurity(data: unknown, config: any, report: any): Promise<{
+  private async validateSecurity(data: unknown, config: unknown, report: unknown): Promise<{
     validatedData: unknown;
     rejectedData: unknown[];
   }> {
@@ -538,11 +538,11 @@ class MessengerExecutor extends BaseAgentExecutor {
     
     try {
       const finalData = this.getInput(context, 'final_data');
-      const config = context.config as any;
+      const config = context.config as unknown;
       const outputFormat = config.outputFormat || 'json';
 
       let formattedOutput: string;
-      const exportInfo: any = {
+      const exportInfo: unknown = {
         format: outputFormat,
         exportedAt: new Date().toISOString(),
         dataSize: JSON.stringify(finalData).length

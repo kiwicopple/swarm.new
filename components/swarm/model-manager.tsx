@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { aiService } from '@/lib/ai/ai-service';
 import { MODEL_REGISTRY, ModelProgress } from '@/lib/ai/model-loader';
 import { cn } from '@/lib/utils';
@@ -182,163 +183,149 @@ export function ModelManager() {
   const loadingCount = Object.values(modelStatuses).filter(s => s.status === 'loading').length;
 
   return (
-    <div className="relative">
-      {/* Toggle Button */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setIsVisible(!isVisible)}
-        className="flex items-center gap-2"
+    <Popover open={isVisible} onOpenChange={setIsVisible}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <Brain className="w-4 h-4" />
+          Models ({loadedCount} loaded)
+          {loadingCount > 0 && (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      
+      <PopoverContent 
+        className="w-96 p-0 max-h-96 overflow-hidden" 
+        side="top"
+        align="end"
+        sideOffset={8}
       >
-        <Brain className="w-4 h-4" />
-        Models ({loadedCount} loaded)
-        {loadingCount > 0 && (
-          <Loader2 className="w-3 h-3 animate-spin" />
-        )}
-      </Button>
-
-      {/* Model Manager Panel */}
-      {isVisible && (
-        <>
-          {/* Overlay */}
-          <div 
-            className="fixed inset-0 bg-black/20 z-40"
-            onClick={() => setIsVisible(false)}
-          />
-          
-          {/* Panel */}
-          <div className="absolute top-full right-0 mt-2 w-96 max-h-96 bg-background border border-border rounded-lg shadow-lg z-50 overflow-hidden">
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Brain className="w-4 h-4" />
-                  AI Model Manager
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsVisible(false)}
-                >
-                  ×
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Manage AI models for your workflow agents
-              </p>
-            </div>
-
-            <div className="overflow-y-auto max-h-80">
-              <div className="p-4 space-y-3">
-                {Object.values(MODEL_REGISTRY).map((model) => {
-                  const status = modelStatuses[model.id];
-                  if (!status) return null;
-
-                  return (
-                    <Card key={model.id} className="p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {getStatusIcon(status)}
-                            <h4 className="font-medium text-sm truncate">
-                              {model.name}
-                            </h4>
-                            {getStatusBadge(status)}
-                          </div>
-                          
-                          <p className="text-xs text-muted-foreground mb-2">
-                            {model.description}
-                          </p>
-                          
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge 
-                              variant="outline" 
-                              className={cn("text-xs", getTaskColor(model.task))}
-                            >
-                              {model.task}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {model.size}
-                            </span>
-                          </div>
-
-                          {status.status === 'loading' && (
-                            <div className="space-y-1">
-                              <Progress 
-                                value={
-                                  status.loaded && status.total && status.total > 0
-                                    ? Math.min(100, (status.loaded / status.total) * 100)
-                                    : status.progress || 0
-                                } 
-                                className="h-1" 
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                {status.loaded && status.total ? (
-                                  `${formatMB(status.loaded)} MB / ${formatMB(status.total)} MB`
-                                ) : status.progress !== undefined ? (
-                                  `${Math.round(status.progress)}% loaded`
-                                ) : (
-                                  'Loading...'
-                                )}
-                              </p>
-                            </div>
-                          )}
-
-                          {status.error && (
-                            <p className="text-xs text-red-600 bg-red-50 p-2 rounded mt-2">
-                              {status.error}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          {status.status === 'idle' || status.status === 'error' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleLoadModel(model.id)}
-                              className="text-xs h-7"
-                            >
-                              <Download className="w-3 h-3 mr-1" />
-                              Load
-                            </Button>
-                          ) : status.status === 'loaded' ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleTestModel(model.id)}
-                                className="text-xs h-7"
-                              >
-                                <TestTube className="w-3 h-3 mr-1" />
-                                Test
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleUnloadModel(model.id)}
-                                className="text-xs h-7"
-                              >
-                                <Trash2 className="w-3 h-3 mr-1" />
-                                Unload
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="p-3 border-t border-border bg-muted/50">
-              <p className="text-xs text-muted-foreground">
-                Models run locally in your browser. First load may take time.
-              </p>
-            </div>
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Brain className="w-4 h-4" />
+              AI Model Manager
+            </h3>
           </div>
-        </>
-      )}
-    </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Manage AI models for your workflow agents
+          </p>
+        </div>
+
+        <div className="overflow-y-auto max-h-80">
+          <div className="p-4 space-y-3">
+            {Object.values(MODEL_REGISTRY).map((model) => {
+              const status = modelStatuses[model.id];
+              if (!status) return null;
+
+              return (
+                <Card key={model.id} className="p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        {getStatusIcon(status)}
+                        <h4 className="font-medium text-sm truncate">
+                          {model.name}
+                        </h4>
+                        {getStatusBadge(status)}
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {model.description}
+                      </p>
+                      
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge 
+                          variant="outline" 
+                          className={cn("text-xs", getTaskColor(model.task))}
+                        >
+                          {model.task}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {model.size}
+                        </span>
+                      </div>
+
+                      {status.status === 'loading' && (
+                        <div className="space-y-1">
+                          <Progress 
+                            value={
+                              status.loaded && status.total && status.total > 0
+                                ? Math.min(100, (status.loaded / status.total) * 100)
+                                : status.progress || 0
+                            } 
+                            className="h-1" 
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {status.loaded && status.total ? (
+                              `${formatMB(status.loaded)} MB / ${formatMB(status.total)} MB`
+                            ) : status.progress !== undefined ? (
+                              `${Math.round(status.progress)}% loaded`
+                            ) : (
+                              'Loading...'
+                            )}
+                          </p>
+                        </div>
+                      )}
+
+                      {status.error && (
+                        <p className="text-xs text-red-600 bg-red-50 p-2 rounded mt-2">
+                          {status.error}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      {status.status === 'idle' || status.status === 'error' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleLoadModel(model.id)}
+                          className="text-xs h-7"
+                        >
+                          <Download className="w-3 h-3 mr-1" />
+                          Load
+                        </Button>
+                      ) : status.status === 'loaded' ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleTestModel(model.id)}
+                            className="text-xs h-7"
+                          >
+                            <TestTube className="w-3 h-3 mr-1" />
+                            Test
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUnloadModel(model.id)}
+                            className="text-xs h-7"
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Unload
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-3 border-t border-border bg-muted/50">
+          <p className="text-xs text-muted-foreground">
+            Models run locally in your browser. First load may take time.
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

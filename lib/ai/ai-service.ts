@@ -1,4 +1,4 @@
-import { ModelProgress, ModelConfig, MODEL_REGISTRY, modelLoader } from './model-loader';
+import { ModelProgress, ModelConfig, MODEL_REGISTRY } from './model-loader';
 
 interface InferenceOptions {
   maxTokens?: number;
@@ -20,8 +20,37 @@ interface InferenceResult {
   processingTime?: number;
 }
 
+interface WorkerMessage {
+  id: string;
+  type: 'load' | 'infer' | 'unload';
+  modelId?: string;
+  modelPath?: string;
+  task?: string;
+  input?: unknown;
+  options?: unknown;
+}
+
+interface WorkerResponse {
+  id: string;
+  type: 'success' | 'error' | 'progress';
+  result?: unknown;
+  error?: string;
+  progress?: number;
+  loaded?: number;
+  total?: number;
+}
+
 class AIService {
   private static instance: AIService;
+  private worker: Worker | null = null;
+  private pendingRequests = new Map<string, {
+    resolve: (value: WorkerResponse) => void;
+    reject: (reason?: unknown) => void;
+    onProgress?: (progress: ModelProgress) => void;
+  }>();
+  private messageId = 0;
+  private loadedModels = new Set<string>();
+  private loadingModels = new Set<string>();
   
   static getInstance(): AIService {
     if (!AIService.instance) {
@@ -30,15 +59,114 @@ class AIService {
     return AIService.instance;
   }
   
+  private initWorker(): void {
+    if (this.worker) return;
+    
+    if (typeof window === 'undefined') {
+      // Server-side: don't initialize worker
+      return;
+    }
+    
+    try {
+      this.worker = new Worker('/ai-worker.js');
+      
+      this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+        const response = event.data;
+        const request = this.pendingRequests.get(response.id);
+        
+        if (!request) return;
+        
+        if (response.type === 'progress' && request.onProgress) {
+          const progressData: ModelProgress = {
+            modelId: '', // Will be filled by caller
+            status: 'downloading',
+            progress: response.progress || 0,
+            loaded: response.loaded || 0,
+            total: response.total || 0
+          };
+          request.onProgress(progressData);
+          return;
+        }
+        
+        if (response.type === 'success' || response.type === 'error') {
+          this.pendingRequests.delete(response.id);
+          request.resolve(response);
+        }
+      };
+      
+      this.worker.onerror = (error) => {
+        console.error('Worker error:', error);
+        // Reject all pending requests
+        this.pendingRequests.forEach(({ reject }) => {
+          reject(new Error('Worker error'));
+        });
+        this.pendingRequests.clear();
+        this.worker = null;
+      };
+    } catch (error) {
+      console.error('Failed to initialize worker:', error);
+      this.worker = null;
+    }
+  }
+  
+  private async sendMessage(message: Omit<WorkerMessage, 'id'>, onProgress?: (progress: ModelProgress) => void): Promise<WorkerResponse> {
+    this.initWorker();
+    
+    if (!this.worker) {
+      throw new Error('Worker not available. Running in server environment or worker failed to initialize.');
+    }
+    
+    const id = (++this.messageId).toString();
+    const fullMessage: WorkerMessage = { ...message, id };
+    
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(id, { resolve, reject, onProgress });
+      this.worker!.postMessage(fullMessage);
+    });
+  }
+  
   async loadModel(
     modelId: string,
     onProgress?: (progress: ModelProgress) => void
   ): Promise<void> {
+    if (this.loadedModels.has(modelId)) {
+      return; // Already loaded
+    }
+    
+    if (this.loadingModels.has(modelId)) {
+      throw new Error(`Model ${modelId} is already loading`);
+    }
+    
+    const modelConfig = MODEL_REGISTRY[modelId];
+    if (!modelConfig) {
+      throw new Error(`Model ${modelId} not found in registry`);
+    }
+    
+    this.loadingModels.add(modelId);
+    
     try {
-      await modelLoader.loadModel(modelId, onProgress);
+      const progressCallback = onProgress ? (progress: ModelProgress) => {
+        progress.modelId = modelId;
+        onProgress(progress);
+      } : undefined;
+      
+      const response = await this.sendMessage({
+        type: 'load',
+        modelId,
+        modelPath: modelConfig.id,
+        task: modelConfig.task
+      }, progressCallback);
+      
+      if (response.type === 'error') {
+        throw new Error(response.error || 'Failed to load model');
+      }
+      
+      this.loadedModels.add(modelId);
     } catch (error) {
       console.error('Failed to load model:', error);
       throw error;
+    } finally {
+      this.loadingModels.delete(modelId);
     }
   }
   
@@ -50,21 +178,27 @@ class AIService {
     const startTime = Date.now();
     
     try {
-      // Get the loaded model
-      const model = modelLoader.getLoadedModel(modelId);
-      if (!model) {
+      if (!this.loadedModels.has(modelId)) {
         throw new Error(`Model ${modelId} is not loaded. Please load it first.`);
       }
       
       // Process options for transformers.js format
       const processedOptions = this.processOptions(options);
       
-      // Run inference directly on main thread
-      const result = await this.executeModel(model, input, processedOptions);
+      const response = await this.sendMessage({
+        type: 'infer',
+        modelId,
+        input,
+        options: processedOptions
+      });
+      
+      if (response.type === 'error') {
+        throw new Error(response.error || 'Inference failed');
+      }
       
       return {
         success: true,
-        result: this.processResult(result),
+        result: response.result,
         processingTime: Date.now() - startTime
       };
     } catch (error) {
@@ -77,80 +211,35 @@ class AIService {
     }
   }
   
-  private async executeModel(model: unknown, input: string | string[], options: Record<string, unknown>): Promise<unknown> {
-    // Type assertion for the model function call
-    const modelFn = model as (input: string | string[], options?: Record<string, unknown>) => Promise<unknown>;
-    return await modelFn(input, options);
-  }
-  
-  private processResult(result: unknown): unknown {
-    // Process different types of model outputs
-    if (Array.isArray(result)) {
-      return result.map(item => this.processResultItem(item));
-    }
-    return this.processResultItem(result);
-  }
-  
-  private processResultItem(item: unknown): unknown {
-    // Handle different result formats
-    if (item && typeof item === 'object') {
-      const obj = item as Record<string, unknown>;
-      
-      // Handle classification results
-      if ('label' in obj && 'score' in obj && typeof obj.score === 'number') {
-        return {
-          label: obj.label,
-          score: obj.score,
-          confidence: Math.round(obj.score * 100)
-        };
-      }
-      
-      // Handle generation results
-      if ('generated_text' in obj && typeof obj.generated_text === 'string') {
-        return {
-          text: obj.generated_text,
-          length: obj.generated_text.length
-        };
-      }
-      
-      // Handle summarization results
-      if ('summary_text' in obj && typeof obj.summary_text === 'string') {
-        return {
-          text: obj.summary_text,
-          length: obj.summary_text.length
-        };
-      }
-      
-      // Handle translation results
-      if ('translation_text' in obj && typeof obj.translation_text === 'string') {
-        return {
-          text: obj.translation_text,
-          length: obj.translation_text.length
-        };
-      }
-      
-      // Handle embeddings (feature extraction)
-      if ('data' in obj && Array.isArray(obj.data)) {
-        return {
-          embeddings: obj.data,
-          dimensions: obj.data.length
-        };
-      }
-    }
-    
-    return item;
-  }
-  
   async unloadModel(modelId: string): Promise<void> {
-    modelLoader.unloadModel(modelId);
+    try {
+      if (!this.loadedModels.has(modelId)) {
+        return; // Already unloaded
+      }
+      
+      const response = await this.sendMessage({
+        type: 'unload',
+        modelId
+      });
+      
+      if (response.type === 'error') {
+        console.error('Failed to unload model:', response.error);
+      }
+      
+      this.loadedModels.delete(modelId);
+    } catch (error) {
+      console.error('Error unloading model:', error);
+      // Still remove from our tracking
+      this.loadedModels.delete(modelId);
+    }
   }
   
   isModelLoaded(modelId: string): boolean {
-    return modelLoader.isModelLoaded(modelId);
+    return this.loadedModels.has(modelId);
   }
   
   isModelLoading(modelId: string): boolean {
-    return modelLoader.isModelLoading(modelId);
+    return this.loadingModels.has(modelId);
   }
   
   private processOptions(options: InferenceOptions): Record<string, unknown> {
@@ -213,7 +302,22 @@ class AIService {
   }
   
   cleanup(): void {
-    modelLoader.unloadAllModels();
+    // Unload all models
+    const modelIds = Array.from(this.loadedModels);
+    modelIds.forEach(modelId => {
+      this.unloadModel(modelId).catch(error => {
+        console.error(`Failed to unload model ${modelId}:`, error);
+      });
+    });
+    
+    // Terminate worker
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    
+    // Clear pending requests
+    this.pendingRequests.clear();
   }
 }
 

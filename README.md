@@ -1,36 +1,143 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🐝 Digital Bees Swarm
 
-## Getting Started
+A visual workflow builder for creating AI-powered automation swarms that run entirely in your browser.
 
-First, run the development server:
+![Next.js](https://img.shields.io/badge/Next.js-15-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![React Flow](https://img.shields.io/badge/React%20Flow-12-purple)
+![Transformers.js](https://img.shields.io/badge/Transformers.js-Ready-green)
+
+## 🌟 Features
+
+### ✅ Currently Implemented
+- **Visual Workflow Builder** - Drag-and-drop interface with React Flow
+- **6 Agent Types** - Specialized bee agents for different tasks
+- **Swarm Management** - Create, edit, and delete workflow swarms
+- **Local Storage** - All workflows saved locally with Zustand
+- **Bee-Themed UI** - Honeycomb-inspired design with amber colors
+
+### 🚧 In Development (See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md))
+- **Local AI Processing** - Transformers.js integration
+- **Workflow Execution** - Run swarms with real AI models
+- **Agent Configuration** - Customize each bee's behavior
+- **Data Flow System** - Type-safe connections between nodes
+- **Live Animations** - Bee flight paths during execution
+
+## 🏃 Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Build for production
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit `http://localhost:3000` to start building your swarm!
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🐝 Agent Types
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Agent | Icon | Purpose | Examples |
+|-------|------|---------|----------|
+| **Scout** | 🔍 | Input & Data Fetching | Text input, File upload, URL fetch |
+| **Worker** | 🔨 | Processing & Transformation | Text processing, Math, Parsing |
+| **Queen** | 👑 | Decision Making | Routing, Classification, Conditionals |
+| **Builder** | 🔧 | Content Generation | Text generation, Summarization, Translation |
+| **Guard** | 🛡️ | Validation & Security | Schema validation, Content filtering |
+| **Messenger** | 📤 | Output & Communication | Display, Download, Notifications |
 
-## Learn More
+## 🎯 Implementation Roadmap
 
-To learn more about Next.js, take a look at the following resources:
+### Phase 1: Configuration System 📋
+Build the UI for configuring individual agent nodes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Phase 2: AI Integration 🤖
+Integrate Transformers.js for local model execution
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Phase 3: Data Flow 🔄
+Implement typed connections between nodes
 
-## Deploy on Vercel
+### Phase 4: Execution Engine ⚡
+Build the workflow execution system
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Phase 5: Agent Logic 🐝
+Implement specific functionality for each agent type
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Phase 6: UI Polish 🎨
+Add animations and visual feedback
+
+### Phase 7: Advanced Features 🚀
+Templates, import/export, debugging tools
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────┐
+│         React Flow Canvas           │
+│  ┌─────┐  ┌─────┐  ┌─────┐        │
+│  │Scout│──▶│Worker│──▶│Builder│     │
+│  └─────┘  └─────┘  └─────┘        │
+└─────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────┐
+│      Execution Engine               │
+│  • DAG Traversal                    │
+│  • Node Handlers                    │
+│  • State Management                 │
+└─────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────┐
+│      Transformers.js                │
+│  • Local AI Models                  │
+│  • Web Workers                      │
+│  • Model Caching                    │
+└─────────────────────────────────────┘
+```
+
+## 💾 Data Storage
+
+All data is stored locally in your browser:
+- **Workflows** - LocalForage (IndexedDB)
+- **AI Models** - Cached in IndexedDB
+- **Execution Results** - Session storage
+
+## 🧪 Development
+
+```bash
+# Run tests
+npm test
+
+# Type checking
+npm run type-check
+
+# Linting
+npm run lint
+```
+
+## 📦 Tech Stack
+
+- **Framework**: Next.js 15 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Workflow**: React Flow
+- **State**: Zustand
+- **Storage**: LocalForage
+- **AI**: Transformers.js (planned)
+- **Icons**: Lucide React
+
+## 🤝 Contributing
+
+This is a proof-of-concept project. Feel free to fork and extend!
+
+## 📄 License
+
+MIT
+
+---
+
+Built with 🍯 by the Digital Bees

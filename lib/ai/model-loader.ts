@@ -106,13 +106,17 @@ class ModelLoader {
     modelId: string, 
     onProgress?: (progress: ModelProgress) => void
   ): Promise<PipelineType> {
+    console.log(`ModelLoader: Loading model ${modelId}`);
+    
     // Check if model is already loaded
     if (this.loadedModels.has(modelId)) {
+      console.log(`ModelLoader: Model ${modelId} already loaded`);
       return this.loadedModels.get(modelId)!;
     }
     
     // Check if model is already loading
     if (this.loadingPromises.has(modelId)) {
+      console.log(`ModelLoader: Model ${modelId} already loading`);
       return this.loadingPromises.get(modelId)!;
     }
     
@@ -120,6 +124,7 @@ class ModelLoader {
     if (!config) {
       throw new Error(`Unknown model: ${modelId}`);
     }
+    console.log(`ModelLoader: Config found for ${modelId}:`, config);
     
     // Store progress callback
     if (onProgress) {
@@ -157,14 +162,18 @@ class ModelLoader {
   }
   
   private async loadModelInternal(config: ModelConfig): Promise<PipelineType> {
+    console.log(`ModelLoader: Starting internal load for ${config.id}`);
     const onProgress = this.progressCallbacks.get(config.id);
     
     if (onProgress) {
       onProgress({ status: 'loading', progress: 0 });
     }
     
-    // Create pipeline with progress callback
-    const model = await pipeline(config.task, config.modelId, {
+    try {
+      console.log(`ModelLoader: Creating pipeline for task '${config.task}' with model '${config.modelId}'`);
+      
+      // Create pipeline with progress callback
+      const model = await pipeline(config.task, config.modelId, {
       progress_callback: (progress: unknown) => {
         if (onProgress && progress && typeof progress === 'object' && 'progress' in progress) {
           const progressObj = progress as { progress?: number; loaded?: number; total?: number; file?: string };
@@ -180,7 +189,12 @@ class ModelLoader {
       }
     });
     
+    console.log(`ModelLoader: Pipeline created successfully for ${config.id}`);
     return model;
+    } catch (error) {
+      console.error(`ModelLoader: Failed to create pipeline for ${config.id}:`, error);
+      throw error;
+    }
   }
   
   getLoadedModel(modelId: string): PipelineType | null {

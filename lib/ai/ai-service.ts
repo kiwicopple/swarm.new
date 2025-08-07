@@ -1,4 +1,4 @@
-import { ModelProgress, ModelConfig, MODEL_REGISTRY } from './model-loader';
+import { ModelProgress, ModelConfig, MODEL_REGISTRY, modelLoader } from './model-loader';
 
 interface InferenceOptions {
   maxTokens?: number;
@@ -22,13 +22,6 @@ interface InferenceResult {
 
 class AIService {
   private static instance: AIService;
-  private worker: Worker | null = null;
-  private messageId = 0;
-  private pendingRequests: Map<string, {
-    resolve: (value: unknown) => void;
-    reject: (error: Error) => void;
-    onProgress?: (progress: ModelProgress) => void;
-  }> = new Map();
   
   static getInstance(): AIService {
     if (!AIService.instance) {
@@ -37,160 +30,16 @@ class AIService {
     return AIService.instance;
   }
   
-  private initWorker() {
-    if (this.worker) return;
-    
-    // Create worker from the ai-worker.ts file
-    const workerCode = `
-      ${this.getWorkerCode()}
-    `;
-    
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    this.worker = new Worker(URL.createObjectURL(blob));
-    
-    this.worker.onmessage = (event) => {
-      const response = event.data;
-      const request = this.pendingRequests.get(response.id);
-      
-      if (!request) return;
-      
-      if (response.type === 'progress') {
-        request.onProgress?.({
-          status: 'loading',
-          progress: response.progress
-        });
-      } else {
-        this.pendingRequests.delete(response.id);
-        
-        if (response.type === 'success') {
-          request.resolve(response.result);
-        } else {
-          request.reject(new Error(response.error));
-        }
-      }
-    };
-    
-    this.worker.onerror = (error) => {
-      console.error('AI Worker error:', error);
-      // Reject all pending requests
-      for (const [, request] of this.pendingRequests) {
-        request.reject(new Error('Worker error'));
-      }
-      this.pendingRequests.clear();
-    };
-  }
-  
-  private getWorkerCode(): string {
-    // In a real implementation, you'd import this from the worker file
-    // For now, we'll embed the worker code directly
-    return `
-      importScripts('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.10.0/dist/transformers.min.js');
-      
-      class AIWorker {
-        constructor() {
-          this.loadedModels = new Map();
-        }
-        
-        async handleMessage(message) {
-          try {
-            switch (message.type) {
-              case 'load':
-                return await this.loadModel(message);
-              case 'infer':
-                return await this.runInference(message);
-              case 'unload':
-                return this.unloadModel(message);
-              default:
-                throw new Error('Unknown message type: ' + message.type);
-            }
-          } catch (error) {
-            return {
-              id: message.id,
-              type: 'error',
-              error: error.message || 'Unknown error'
-            };
-          }
-        }
-        
-        async loadModel(message) {
-          const { id, modelId, modelPath, task } = message;
-          
-          if (this.loadedModels.has(modelId)) {
-            return { id, type: 'success', result: 'Model already loaded' };
-          }
-          
-          const model = await Transformers.pipeline(task, modelPath, {
-            progress_callback: (progress) => {
-              if (progress?.progress) {
-                self.postMessage({
-                  id,
-                  type: 'progress',
-                  progress: Math.round(progress.progress * 100)
-                });
-              }
-            }
-          });
-          
-          this.loadedModels.set(modelId, model);
-          return { id, type: 'success', result: 'Model loaded successfully' };
-        }
-        
-        async runInference(message) {
-          const { id, modelId, input, options = {} } = message;
-          
-          const model = this.loadedModels.get(modelId);
-          if (!model) {
-            throw new Error('Model ' + modelId + ' not loaded');
-          }
-          
-          const result = await model(input, options);
-          return { id, type: 'success', result };
-        }
-        
-        unloadModel(message) {
-          const { id, modelId } = message;
-          this.loadedModels.delete(modelId);
-          return { id, type: 'success', result: 'Model unloaded' };
-        }
-      }
-      
-      const aiWorker = new AIWorker();
-      
-      self.addEventListener('message', async (event) => {
-        const message = event.data;
-        const response = await aiWorker.handleMessage(message);
-        self.postMessage(response);
-      });
-    `;
-  }
-  
-  private sendMessage(message: Record<string, unknown>, onProgress?: (progress: ModelProgress) => void): Promise<unknown> {
-    this.initWorker();
-    
-    const id = `msg_${++this.messageId}`;
-    message.id = id;
-    
-    return new Promise((resolve, reject) => {
-      this.pendingRequests.set(id, { resolve, reject, onProgress });
-      this.worker!.postMessage(message);
-    });
-  }
-  
   async loadModel(
     modelId: string,
     onProgress?: (progress: ModelProgress) => void
   ): Promise<void> {
-    const config = MODEL_REGISTRY[modelId];
-    if (!config) {
-      throw new Error(`Unknown model: ${modelId}`);
+    try {
+      await modelLoader.loadModel(modelId, onProgress);
+    } catch (error) {
+      console.error('Failed to load model:', error);
+      throw error;
     }
-    
-    await this.sendMessage({
-      type: 'load',
-      modelId,
-      modelPath: config.modelId,
-      task: config.task
-    }, onProgress);
   }
   
   async runInference(
@@ -201,19 +50,25 @@ class AIService {
     const startTime = Date.now();
     
     try {
-      const result = await this.sendMessage({
-        type: 'infer',
-        modelId,
-        input,
-        options: this.processOptions(options)
-      });
+      // Get the loaded model
+      const model = modelLoader.getLoadedModel(modelId);
+      if (!model) {
+        throw new Error(`Model ${modelId} is not loaded. Please load it first.`);
+      }
+      
+      // Process options for transformers.js format
+      const processedOptions = this.processOptions(options);
+      
+      // Run inference directly on main thread
+      const result = await this.executeModel(model, input, processedOptions);
       
       return {
         success: true,
-        result,
+        result: this.processResult(result),
         processingTime: Date.now() - startTime
       };
     } catch (error) {
+      console.error('Inference error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -222,11 +77,80 @@ class AIService {
     }
   }
   
+  private async executeModel(model: unknown, input: string | string[], options: Record<string, unknown>): Promise<unknown> {
+    // Type assertion for the model function call
+    const modelFn = model as (input: string | string[], options?: Record<string, unknown>) => Promise<unknown>;
+    return await modelFn(input, options);
+  }
+  
+  private processResult(result: unknown): unknown {
+    // Process different types of model outputs
+    if (Array.isArray(result)) {
+      return result.map(item => this.processResultItem(item));
+    }
+    return this.processResultItem(result);
+  }
+  
+  private processResultItem(item: unknown): unknown {
+    // Handle different result formats
+    if (item && typeof item === 'object') {
+      const obj = item as Record<string, unknown>;
+      
+      // Handle classification results
+      if ('label' in obj && 'score' in obj && typeof obj.score === 'number') {
+        return {
+          label: obj.label,
+          score: obj.score,
+          confidence: Math.round(obj.score * 100)
+        };
+      }
+      
+      // Handle generation results
+      if ('generated_text' in obj && typeof obj.generated_text === 'string') {
+        return {
+          text: obj.generated_text,
+          length: obj.generated_text.length
+        };
+      }
+      
+      // Handle summarization results
+      if ('summary_text' in obj && typeof obj.summary_text === 'string') {
+        return {
+          text: obj.summary_text,
+          length: obj.summary_text.length
+        };
+      }
+      
+      // Handle translation results
+      if ('translation_text' in obj && typeof obj.translation_text === 'string') {
+        return {
+          text: obj.translation_text,
+          length: obj.translation_text.length
+        };
+      }
+      
+      // Handle embeddings (feature extraction)
+      if ('data' in obj && Array.isArray(obj.data)) {
+        return {
+          embeddings: obj.data,
+          dimensions: obj.data.length
+        };
+      }
+    }
+    
+    return item;
+  }
+  
   async unloadModel(modelId: string): Promise<void> {
-    await this.sendMessage({
-      type: 'unload',
-      modelId
-    });
+    modelLoader.unloadModel(modelId);
+  }
+  
+  isModelLoaded(modelId: string): boolean {
+    return modelLoader.isModelLoaded(modelId);
+  }
+  
+  isModelLoading(modelId: string): boolean {
+    return modelLoader.isModelLoading(modelId);
   }
   
   private processOptions(options: InferenceOptions): Record<string, unknown> {
@@ -289,11 +213,7 @@ class AIService {
   }
   
   cleanup(): void {
-    if (this.worker) {
-      this.worker.terminate();
-      this.worker = null;
-    }
-    this.pendingRequests.clear();
+    modelLoader.unloadAllModels();
   }
 }
 

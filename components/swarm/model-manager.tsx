@@ -38,20 +38,30 @@ export function ModelManager() {
   };
 
   const handleLoadModel = async (modelId: string) => {
+    console.log(`Starting to load model: ${modelId}`);
     updateModelStatus(modelId, { status: 'loading', progress: 0, error: undefined });
 
     try {
       await aiService.loadModel(modelId, (progress: ModelProgress) => {
+        console.log(`Model ${modelId} progress:`, progress);
         if (progress.status === 'loading' && progress.progress !== undefined) {
           updateModelStatus(modelId, { 
             status: 'loading', 
             progress: progress.progress 
           });
+        } else if (progress.status === 'error') {
+          console.error(`Model ${modelId} loading error:`, progress.error);
+          updateModelStatus(modelId, { 
+            status: 'error', 
+            error: progress.error
+          });
         }
       });
 
+      console.log(`Model ${modelId} loaded successfully`);
       updateModelStatus(modelId, { status: 'loaded', progress: 100 });
     } catch (error) {
+      console.error(`Failed to load model ${modelId}:`, error);
       updateModelStatus(modelId, { 
         status: 'error', 
         error: error instanceof Error ? error.message : 'Failed to load model'

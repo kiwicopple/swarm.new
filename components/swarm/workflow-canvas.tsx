@@ -11,13 +11,14 @@ import {
   addEdge,
   Connection,
   NodeTypes,
+  EdgeTypes,
   BackgroundVariant,
   Panel,
   Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { Swarm, AgentNode, AgentType } from '@/lib/types';
+import { Swarm, AgentNode, AgentType, AgentNodeData } from '@/lib/types';
 import { useSwarmStore } from '@/lib/storage/swarm-store';
 import { NodePalette } from './node-palette';
 import { ExecutionPanel } from './execution-panel';
@@ -29,6 +30,8 @@ import { QueenNode } from './agent-nodes/queen-node';
 import { BuilderNode } from './agent-nodes/builder-node';
 import { GuardNode } from './agent-nodes/guard-node';
 import { MessengerNode } from './agent-nodes/messenger-node';
+import { CustomEdge } from './custom-edge';
+import { validateConnection, AGENT_PORTS } from '@/lib/types/data-flow';
 
 const nodeTypes: NodeTypes = {
   scout: ScoutNode,
@@ -37,6 +40,10 @@ const nodeTypes: NodeTypes = {
   builder: BuilderNode,
   guard: GuardNode,
   messenger: MessengerNode,
+};
+
+const edgeTypes: EdgeTypes = {
+  default: CustomEdge,
 };
 
 interface WorkflowCanvasProps {
@@ -51,9 +58,43 @@ export function WorkflowCanvas({ swarm }: WorkflowCanvasProps) {
 
   const onConnect = useCallback(
     (params: Connection) => {
-      setEdges((eds) => addEdge({ ...params, animated: true }, eds));
+      // Validate connection before adding
+      if (params.source && params.target && params.sourceHandle && params.targetHandle) {
+        const sourceNode = nodes.find(n => n.id === params.source);
+        const targetNode = nodes.find(n => n.id === params.target);
+        
+        if (sourceNode && targetNode) {
+          const sourceNodeData = sourceNode.data as unknown as AgentNodeData;
+          const targetNodeData = targetNode.data as unknown as AgentNodeData;
+          
+          const sourcePorts = AGENT_PORTS[sourceNodeData.agentType];
+          const targetPorts = AGENT_PORTS[targetNodeData.agentType];
+          
+          const sourcePort = sourcePorts?.outputs.find(p => p.id === params.sourceHandle);
+          const targetPort = targetPorts?.inputs.find(p => p.id === params.targetHandle);
+          
+          if (sourcePort && targetPort) {
+            const validation = validateConnection(sourcePort, targetPort);
+            if (validation.valid) {
+              setEdges((eds) => addEdge({ 
+                ...params, 
+                animated: true,
+                type: 'default'
+              }, eds));
+            } else {
+              // Still add the edge but mark it as invalid - CustomEdge will handle visualization
+              setEdges((eds) => addEdge({ 
+                ...params, 
+                animated: true,
+                type: 'default',
+                data: { invalid: true, error: validation.error }
+              }, eds));
+            }
+          }
+        }
+      }
     },
-    [setEdges]
+    [setEdges, nodes]
   );
 
   const onDrop = useCallback(
@@ -76,8 +117,6 @@ export function WorkflowCanvas({ swarm }: WorkflowCanvasProps) {
           name: `${type.charAt(0).toUpperCase() + type.slice(1)} Bee`,
           agentType: type as AgentType,
           config: AGENT_CONFIGS[type as AgentType]?.defaultConfig || {},
-          inputs: [{ id: 'input', name: 'Input', type: 'any' }],
-          outputs: [{ id: 'output', name: 'Output', type: 'any' }],
           status: 'idle',
         },
       };
@@ -132,6 +171,7 @@ export function WorkflowCanvas({ swarm }: WorkflowCanvasProps) {
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
         >
           <Background 

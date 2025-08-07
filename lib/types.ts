@@ -8,10 +8,23 @@ export type AgentType =
   | 'guard'      
   | 'messenger';
 
-export interface Port {
-  id: string;
-  name: string;
-  type: 'text' | 'array' | 'object' | 'number' | 'boolean' | 'any';
+// Re-export data flow types
+export { 
+  type Port, 
+  type DataType, 
+  type DataPayload, 
+  type DataEdge 
+} from './types/data-flow';
+
+// Import for local use
+import type { DataPayload } from './types/data-flow';
+
+export interface NodeResult {
+  nodeId: string;
+  outputs: Record<string, DataPayload>;
+  status: 'success' | 'error' | 'pending';
+  error?: string;
+  executionTime?: number;
 }
 
 export interface AgentNodeData {
@@ -19,10 +32,8 @@ export interface AgentNodeData {
   agentType: AgentType;
   model?: string;
   config: Record<string, unknown>;
-  inputs: Port[];
-  outputs: Port[];
   status?: 'idle' | 'running' | 'success' | 'error';
-  result?: unknown;
+  result?: NodeResult;
 }
 
 export interface AgentNode {

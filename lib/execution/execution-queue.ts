@@ -5,7 +5,6 @@
 
 import { DAGEngine, ExecutionPlan, ExecutionNode } from './dag-engine';
 import { AgentNodeData, NodeResult, DataPayload } from '@/lib/types';
-import { transformData } from '@/lib/types/data-flow';
 
 export interface ExecutionOptions {
   maxConcurrentNodes: number;
@@ -190,7 +189,7 @@ export class ExecutionQueue {
       const nodesToExecute = readyNodes.slice(0, availableSlots);
 
       // Start executing nodes
-      const executionPromises = nodesToExecute.map(node => this.executeNode(node));
+      nodesToExecute.map(node => this.executeNode(node));
       
       // Wait for at least one to complete if we're at capacity
       if (this.runningTasks.size >= this.options.maxConcurrentNodes) {
@@ -208,7 +207,7 @@ export class ExecutionQueue {
    * Execute a single node
    */
   private async executeNode(executionNode: ExecutionNode): Promise<void> {
-    const { id, node } = executionNode;
+    const { id } = executionNode;
     
     // Mark node as running
     DAGEngine.updateNodeStatus(this.executionPlan, id, 'running');

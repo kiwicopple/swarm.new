@@ -78,8 +78,7 @@ class AIService {
         
         if (response.type === 'progress' && request.onProgress) {
           const progressData: ModelProgress = {
-            modelId: '', // Will be filled by caller
-            status: 'downloading',
+            status: 'loading',
             progress: response.progress || 0,
             loaded: response.loaded || 0,
             total: response.total || 0
@@ -146,7 +145,6 @@ class AIService {
     
     try {
       const progressCallback = onProgress ? (progress: ModelProgress) => {
-        progress.modelId = modelId;
         onProgress(progress);
       } : undefined;
       

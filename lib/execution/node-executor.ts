@@ -4,9 +4,39 @@
  */
 
 import { ExecutionContext, ExecutionHandler } from './execution-queue';
-import { NodeResult, DataPayload, AgentType } from '@/lib/types';
-import { AGENT_PORTS } from '@/lib/types/data-flow';
+import { NodeResult, DataPayload, DataType, AgentType } from '@/lib/types';
 import { aiService } from '@/lib/ai/ai-service';
+
+interface NodeConfig {
+  inputType?: string;
+  inputValue?: unknown;
+  operationType?: string;
+  decisionType?: string;
+  validationType?: string;
+  outputFormat?: string;
+  categories?: string[];
+  minLength?: number;
+  maxLength?: number;
+  requiredFields?: string[];
+  [key: string]: unknown;
+}
+
+interface ValidationReport {
+  nodeId: string;
+  validatedAt: string;
+  validationType: string;
+  passed: boolean;
+  errors: unknown[];
+  warnings: unknown[];
+}
+
+interface ExportInfo {
+  format: string;
+  exportedAt: string;
+  dataSize: number;
+  pretty?: boolean;
+  [key: string]: unknown;
+}
 
 /**
  * Base class for agent executors
@@ -17,10 +47,10 @@ abstract class BaseAgentExecutor {
   /**
    * Create output payload
    */
-  protected createOutput(portId: string, value: unknown, type: string): DataPayload {
+  protected createOutput(context: ExecutionContext, portId: string, value: unknown, type: string): DataPayload {
     return {
       id: `${context.nodeId}_${portId}_${Date.now()}`,
-      type: type as unknown,
+      type: type as DataType,
       value,
       metadata: {
         source: context.nodeId,
@@ -59,9 +89,9 @@ class ScoutExecutor extends BaseAgentExecutor {
     const startTime = Date.now();
     
     try {
-      const config = context.config as unknown;
-      const inputType = config.inputType || 'text';
-      const inputValue = config.inputValue || this.getInput(context, 'trigger');
+      const config = context.config as NodeConfig;
+      const inputType = config?.inputType || 'text';
+      const inputValue = config?.inputValue || this.getInput(context, 'trigger');
 
       let collectedData: unknown;
       let metadata: Record<string, unknown>;
@@ -101,8 +131,8 @@ class ScoutExecutor extends BaseAgentExecutor {
       return {
         nodeId: context.nodeId,
         outputs: {
-          collected_data: this.createOutput('collected_data', collectedData, 'object'),
-          metadata: this.createOutput('metadata', metadata, 'object')
+          collected_data: this.createOutput(context, 'collected_data', collectedData, 'object'),
+          metadata: this.createOutput(context, 'metadata', metadata, 'object')
         },
         status: 'success',
         executionTime: Date.now() - startTime
@@ -123,8 +153,8 @@ class WorkerExecutor extends BaseAgentExecutor {
     
     try {
       const inputData = this.getInput(context, 'input_data');
-      const config = context.config as unknown;
-      const operationType = config.operationType || 'transform';
+      const config = context.config as NodeConfig;
+      const operationType = config?.operationType || 'transform';
       
       let processedData: unknown;
       const processingLog: string[] = [];
@@ -157,8 +187,8 @@ class WorkerExecutor extends BaseAgentExecutor {
       return {
         nodeId: context.nodeId,
         outputs: {
-          processed_data: this.createOutput('processed_data', processedData, 'object'),
-          processing_log: this.createOutput('processing_log', processingLog, 'array')
+          processed_data: this.createOutput(context, 'processed_data', processedData, 'object'),
+          processing_log: this.createOutput(context, 'processing_log', processingLog, 'array')
         },
         status: 'success',
         executionTime: Date.now() - startTime
@@ -211,7 +241,7 @@ class WorkerExecutor extends BaseAgentExecutor {
     
     try {
       const prompt = `Analyze this data: ${JSON.stringify(data, null, 2)}`;
-      const result = await aiService.generateText(context.model, prompt);
+      const result = await aiService.runInference(context.model!, prompt);
       
       log.push('AI analysis completed');
       
@@ -236,8 +266,8 @@ class QueenExecutor extends BaseAgentExecutor {
     
     try {
       const decisionData = this.getInput(context, 'decision_data');
-      const config = context.config as unknown;
-      const decisionType = config.decisionType || 'classify';
+      const config = context.config as NodeConfig;
+      const decisionType = config?.decisionType || 'classify';
 
       if (!context.model) {
         return this.createError(context, 'Queen bee requires an AI model for decision making');
@@ -253,11 +283,11 @@ class QueenExecutor extends BaseAgentExecutor {
           break;
 
         case 'prioritize':
-          ({ decision, confidence, alternatives } = await this.prioritizeOptions(decisionData, context, config));
+          ({ decision, confidence, alternatives } = await this.prioritizeOptions(decisionData, context));
           break;
 
         case 'recommend':
-          ({ decision, confidence, alternatives } = await this.makeRecommendation(decisionData, context, config));
+          ({ decision, confidence, alternatives } = await this.makeRecommendation(decisionData, context));
           break;
 
         default:
@@ -267,9 +297,9 @@ class QueenExecutor extends BaseAgentExecutor {
       return {
         nodeId: context.nodeId,
         outputs: {
-          decision: this.createOutput('decision', decision, 'object'),
-          confidence: this.createOutput('confidence', confidence, 'number'),
-          alternatives: this.createOutput('alternatives', alternatives, 'array')
+          decision: this.createOutput(context, 'decision', decision, 'object'),
+          confidence: this.createOutput(context, 'confidence', confidence, 'number'),
+          alternatives: this.createOutput(context, 'alternatives', alternatives, 'array')
         },
         status: 'success',
         executionTime: Date.now() - startTime
@@ -280,7 +310,7 @@ class QueenExecutor extends BaseAgentExecutor {
     }
   }
 
-  private async classifyData(data: unknown, context: ExecutionContext, config: unknown): Promise<{
+  private async classifyData(data: unknown, context: ExecutionContext, config: NodeConfig): Promise<{
     decision: unknown;
     confidence: number;
     alternatives: unknown[];
@@ -288,7 +318,13 @@ class QueenExecutor extends BaseAgentExecutor {
     const categories = config.categories || ['positive', 'negative', 'neutral'];
     const prompt = `Classify the following data into one of these categories: ${categories.join(', ')}\n\nData: ${JSON.stringify(data)}`;
     
-    const result = await aiService.generateText(context.model!, prompt);
+    const inferenceResult = await aiService.runInference(context.model!, prompt);
+    
+    if (!inferenceResult.success) {
+      throw new Error(inferenceResult.error || 'AI inference failed');
+    }
+    
+    const result = inferenceResult.result as string;
     
     // Parse AI response to extract classification
     const classification = categories.find(cat => result.toLowerCase().includes(cat.toLowerCase())) || categories[0];
@@ -304,35 +340,43 @@ class QueenExecutor extends BaseAgentExecutor {
     };
   }
 
-  private async prioritizeOptions(data: unknown, context: ExecutionContext, config: unknown): Promise<{
+  private async prioritizeOptions(data: unknown, context: ExecutionContext): Promise<{
     decision: unknown;
     confidence: number;
     alternatives: unknown[];
   }> {
     const prompt = `Prioritize the following items from highest to lowest priority:\n\n${JSON.stringify(data)}`;
-    const result = await aiService.generateText(context.model!, prompt);
+    const inferenceResult = await aiService.runInference(context.model!, prompt);
+    
+    if (!inferenceResult.success) {
+      throw new Error(inferenceResult.error || 'AI inference failed');
+    }
     
     return {
       decision: {
         prioritizedList: Array.isArray(data) ? data : [data],
-        reasoning: result
+        reasoning: inferenceResult.result
       },
       confidence: 0.75,
       alternatives: []
     };
   }
 
-  private async makeRecommendation(data: unknown, context: ExecutionContext, config: unknown): Promise<{
+  private async makeRecommendation(data: unknown, context: ExecutionContext): Promise<{
     decision: unknown;
     confidence: number;
     alternatives: unknown[];
   }> {
     const prompt = `Based on the following data, make a recommendation:\n\n${JSON.stringify(data)}`;
-    const result = await aiService.generateText(context.model!, prompt);
+    const inferenceResult = await aiService.runInference(context.model!, prompt);
+    
+    if (!inferenceResult.success) {
+      throw new Error(inferenceResult.error || 'AI inference failed');
+    }
     
     return {
       decision: {
-        recommendation: result,
+        recommendation: inferenceResult.result,
         basedOn: data
       },
       confidence: 0.85,
@@ -351,7 +395,7 @@ class BuilderExecutor extends BaseAgentExecutor {
     try {
       const prompt = this.getInput(context, 'prompt') as string;
       const contextData = this.getInput(context, 'context');
-      const config = context.config as unknown;
+      // const config = context.config as unknown;
 
       if (!context.model) {
         return this.createError(context, 'Builder bee requires an AI model for content generation');
@@ -366,7 +410,13 @@ class BuilderExecutor extends BaseAgentExecutor {
         fullPrompt += `\n\nContext: ${JSON.stringify(contextData)}`;
       }
 
-      const generatedContent = await aiService.generateText(context.model, fullPrompt);
+      const inferenceResult = await aiService.runInference(context.model!, fullPrompt);
+      
+      if (!inferenceResult.success) {
+        return this.createError(context, inferenceResult.error || 'AI content generation failed');
+      }
+      
+      const generatedContent = inferenceResult.result as string;
 
       const metadata = {
         promptLength: prompt.length,
@@ -379,8 +429,8 @@ class BuilderExecutor extends BaseAgentExecutor {
       return {
         nodeId: context.nodeId,
         outputs: {
-          generated_content: this.createOutput('generated_content', generatedContent, 'text'),
-          content_metadata: this.createOutput('content_metadata', metadata, 'object')
+          generated_content: this.createOutput(context, 'generated_content', generatedContent, 'text'),
+          content_metadata: this.createOutput(context, 'content_metadata', metadata, 'object')
         },
         status: 'success',
         executionTime: Date.now() - startTime
@@ -401,10 +451,10 @@ class GuardExecutor extends BaseAgentExecutor {
     
     try {
       const dataToValidate = this.getInput(context, 'data_to_validate');
-      const config = context.config as unknown;
-      const validationType = config.validationType || 'content';
+      const config = context.config as NodeConfig;
+      const validationType = config?.validationType || 'content';
 
-      const validationReport: unknown = {
+      const validationReport: ValidationReport = {
         nodeId: context.nodeId,
         validatedAt: new Date().toISOString(),
         validationType,
@@ -438,9 +488,9 @@ class GuardExecutor extends BaseAgentExecutor {
       return {
         nodeId: context.nodeId,
         outputs: {
-          validated_data: this.createOutput('validated_data', validatedData, 'object'),
-          validation_report: this.createOutput('validation_report', validationReport, 'object'),
-          rejected_data: this.createOutput('rejected_data', rejectedData, 'array')
+          validated_data: this.createOutput(context, 'validated_data', validatedData, 'object'),
+          validation_report: this.createOutput(context, 'validation_report', validationReport, 'object'),
+          rejected_data: this.createOutput(context, 'rejected_data', rejectedData, 'array')
         },
         status: 'success',
         executionTime: Date.now() - startTime
@@ -451,7 +501,7 @@ class GuardExecutor extends BaseAgentExecutor {
     }
   }
 
-  private async validateContent(data: unknown, config: unknown, report: unknown): Promise<{
+  private async validateContent(data: unknown, config: NodeConfig, report: ValidationReport): Promise<{
     validatedData: unknown;
     rejectedData: unknown[];
   }> {
@@ -472,7 +522,7 @@ class GuardExecutor extends BaseAgentExecutor {
     return { validatedData: data, rejectedData };
   }
 
-  private async validateSchema(data: unknown, config: unknown, report: unknown): Promise<{
+  private async validateSchema(data: unknown, config: NodeConfig, report: ValidationReport): Promise<{
     validatedData: unknown;
     rejectedData: unknown[];
   }> {
@@ -497,7 +547,7 @@ class GuardExecutor extends BaseAgentExecutor {
     return { validatedData: data, rejectedData };
   }
 
-  private async validateSecurity(data: unknown, config: unknown, report: unknown): Promise<{
+  private async validateSecurity(data: unknown, config: NodeConfig, report: ValidationReport): Promise<{
     validatedData: unknown;
     rejectedData: unknown[];
   }> {
@@ -538,11 +588,11 @@ class MessengerExecutor extends BaseAgentExecutor {
     
     try {
       const finalData = this.getInput(context, 'final_data');
-      const config = context.config as unknown;
-      const outputFormat = config.outputFormat || 'json';
+      const config = context.config as NodeConfig;
+      const outputFormat = config?.outputFormat || 'json';
 
       let formattedOutput: string;
-      const exportInfo: unknown = {
+      const exportInfo: ExportInfo = {
         format: outputFormat,
         exportedAt: new Date().toISOString(),
         dataSize: JSON.stringify(finalData).length
@@ -577,8 +627,8 @@ class MessengerExecutor extends BaseAgentExecutor {
       return {
         nodeId: context.nodeId,
         outputs: {
-          formatted_output: this.createOutput('formatted_output', formattedOutput, 'text'),
-          export_info: this.createOutput('export_info', exportInfo, 'object')
+          formatted_output: this.createOutput(context, 'formatted_output', formattedOutput, 'text'),
+          export_info: this.createOutput(context, 'export_info', exportInfo, 'object')
         },
         status: 'success',
         executionTime: Date.now() - startTime

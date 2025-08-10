@@ -30,7 +30,7 @@ export function WorkerTest() {
       
       newWorker.onmessageerror = (error) => {
         console.error('Worker message error:', error);
-        setError(`Worker message error: ${error.message || 'Unknown error'}`);
+        setError(`Worker message error: Unknown error`);
         setStatus('error');
       };
       

@@ -3,10 +3,10 @@
  * Primary interface for UI components to execute workflows
  */
 
-import { DAGEngine, ExecutionPlan } from './dag-engine';
+import { DAGEngine } from './dag-engine';
 import { ExecutionQueue, ExecutionOptions, ExecutionEvent } from './execution-queue';
 import { NodeExecutor } from './node-executor';
-import { Workflow, AgentNode, NodeResult } from '@/lib/types';
+import { Workflow, NodeResult } from '@/lib/types';
 import { DataEdge } from '@/lib/types/data-flow';
 
 export interface ExecutionState {

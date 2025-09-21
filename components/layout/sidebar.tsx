@@ -21,7 +21,7 @@ export function Sidebar() {
     setCurrentSwarm 
   } = useSwarmStore();
   
-  const [isCreating, setIsCreating] = useState(false);
+  // Always show the create swarm section
   const [newSwarmName, setNewSwarmName] = useState('');
   const [newSwarmDesc, setNewSwarmDesc] = useState('');
 
@@ -31,16 +31,12 @@ export function Sidebar() {
 
   const handleCreateSwarm = async () => {
     if (!newSwarmName.trim()) return;
-    
     const swarm = await createSwarm(
       newSwarmName,
       newSwarmDesc || 'A new swarm workflow'
     );
-    
     setNewSwarmName('');
     setNewSwarmDesc('');
-    setIsCreating(false);
-    
     router.push(`/swarm/${swarm.id}`);
     setCurrentSwarm(swarm.id);
   };
@@ -81,53 +77,40 @@ export function Sidebar() {
       </div>
 
       <div className="mb-4">
-        {!isCreating ? (
-          <Button 
-            onClick={() => {
-              setIsCreating(true);
-              setNewSwarmName(generateBeeNames());
-            }} 
-            className="w-full"
-            variant="default"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create New Swarm
-          </Button>
-        ) : (
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <Input
-                placeholder="Swarm name"
-                value={newSwarmName}
-                onChange={(e) => setNewSwarmName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateSwarm()}
-                autoFocus
-              />
-              <Input
-                placeholder="Description (optional)"
-                value={newSwarmDesc}
-                onChange={(e) => setNewSwarmDesc(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateSwarm()}
-              />
-              <div className="flex gap-2">
-                <Button onClick={handleCreateSwarm} size="sm">
-                  Create
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setIsCreating(false);
-                    setNewSwarmName('');
-                    setNewSwarmDesc('');
-                  }} 
-                  size="sm" 
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <h3 className="text-sm font-semibold text-muted-foreground mb-2">Create Swarm</h3>
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <Input
+              placeholder="Swarm name"
+              value={newSwarmName}
+              onChange={(e) => setNewSwarmName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateSwarm()}
+              autoFocus
+            />
+            <Input
+              placeholder="Description (optional)"
+              value={newSwarmDesc}
+              onChange={(e) => setNewSwarmDesc(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateSwarm()}
+            />
+            <div className="flex gap-2">
+              <Button onClick={handleCreateSwarm} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Create
+              </Button>
+              <Button 
+                onClick={() => {
+                  setNewSwarmName('');
+                  setNewSwarmDesc('');
+                }} 
+                size="sm" 
+                variant="outline"
+              >
+                Clear
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="space-y-2 flex-1">

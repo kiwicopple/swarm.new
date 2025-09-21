@@ -1,29 +1,35 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Bug } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useSwarmStore } from '@/lib/storage/swarm-store';
-import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
-import { ModelManager } from '@/components/swarm/model-manager';
+import React, { useEffect, useState } from "react";
+import { Plus, Trash2, Bug } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useSwarmStore } from "@/lib/storage/swarm-store";
+import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { ModelManager } from "@/components/swarm/model-manager";
 
 export function Sidebar() {
   const router = useRouter();
-  const { 
-    swarms, 
-    currentSwarmId, 
-    loadSwarms, 
-    createSwarm, 
+  const {
+    swarms,
+    currentSwarmId,
+    loadSwarms,
+    createSwarm,
     deleteSwarm,
-    setCurrentSwarm 
+    setCurrentSwarm,
   } = useSwarmStore();
-  
+
   // Always show the create swarm section
-  const [newSwarmName, setNewSwarmName] = useState('');
-  const [newSwarmDesc, setNewSwarmDesc] = useState('');
+  const [newSwarmName, setNewSwarmName] = useState("");
+  const [newSwarmDesc, setNewSwarmDesc] = useState("");
 
   useEffect(() => {
     loadSwarms();
@@ -33,10 +39,10 @@ export function Sidebar() {
     if (!newSwarmName.trim()) return;
     const swarm = await createSwarm(
       newSwarmName,
-      newSwarmDesc || 'A new swarm workflow'
+      newSwarmDesc || "A new swarm workflow"
     );
-    setNewSwarmName('');
-    setNewSwarmDesc('');
+    setNewSwarmName("");
+    setNewSwarmDesc("");
     router.push(`/swarm/${swarm.id}`);
     setCurrentSwarm(swarm.id);
   };
@@ -48,20 +54,12 @@ export function Sidebar() {
 
   const handleDeleteSwarm = async (e: React.MouseEvent, swarmId: string) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this swarm?')) {
+    if (confirm("Are you sure you want to delete this swarm?")) {
       await deleteSwarm(swarmId);
       if (currentSwarmId === swarmId) {
-        router.push('/');
+        router.push("/");
       }
     }
-  };
-
-  const generateBeeNames = () => {
-    const adjectives = ['Busy', 'Golden', 'Royal', 'Swift', 'Dancing'];
-    const nouns = ['Hive', 'Colony', 'Garden', 'Meadow', 'Swarm'];
-    const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const noun = nouns[Math.floor(Math.random() * nouns.length)];
-    return `${adj} ${noun}`;
   };
 
   return (
@@ -77,33 +75,35 @@ export function Sidebar() {
       </div>
 
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-muted-foreground mb-2">Create Swarm</h3>
+        <h3 className="text-sm font-semibold text-muted-foreground mb-2">
+          Create Swarm
+        </h3>
         <Card>
           <CardContent className="p-4 space-y-3">
             <Input
               placeholder="Swarm name"
               value={newSwarmName}
               onChange={(e) => setNewSwarmName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateSwarm()}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateSwarm()}
               autoFocus
             />
             <Input
               placeholder="Description (optional)"
               value={newSwarmDesc}
               onChange={(e) => setNewSwarmDesc(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateSwarm()}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateSwarm()}
             />
             <div className="flex gap-2">
               <Button onClick={handleCreateSwarm} size="sm">
                 <Plus className="w-4 h-4 mr-2" />
                 Create
               </Button>
-              <Button 
+              <Button
                 onClick={() => {
-                  setNewSwarmName('');
-                  setNewSwarmDesc('');
-                }} 
-                size="sm" 
+                  setNewSwarmName("");
+                  setNewSwarmDesc("");
+                }}
+                size="sm"
                 variant="outline"
               >
                 Clear
@@ -144,9 +144,7 @@ export function Sidebar() {
                       <span className="text-xs text-muted-foreground">
                         {swarm.workflow.nodes.length} nodes
                       </span>
-                      <span className="text-xs text-muted-foreground">
-                        •
-                      </span>
+                      <span className="text-xs text-muted-foreground">•</span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(swarm.updatedAt).toLocaleDateString()}
                       </span>
@@ -166,7 +164,7 @@ export function Sidebar() {
           ))
         )}
       </div>
-      
+
       {/* AI Models Section */}
       <div className="mt-4 pt-4 border-t border-border">
         <div className="mb-3">
